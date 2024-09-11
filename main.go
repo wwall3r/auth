@@ -31,21 +31,19 @@ func main() {
 	host := os.Getenv("AUTH_HOST")
 	port := os.Getenv("PORT")
 
-	origin := host + port
-
 	// see the full list of available providers at
 	// https://github.com/markbates/goth/blob/master/examples/main.go
 	goth.UseProviders(
-		amazon.New(os.Getenv("AMAZON_KEY"), os.Getenv("AMAZON_SECRET"), origin+"/auth/amazon/callback"),
-		apple.New(os.Getenv("APPLE_KEY"), os.Getenv("APPLE_SECRET"), origin+"/auth/apple/callback", nil, apple.ScopeName, apple.ScopeEmail),
-		discord.New(os.Getenv("DISCORD_KEY"), os.Getenv("DISCORD_SECRET"), origin+"/auth/discord/callback", discord.ScopeIdentify, discord.ScopeEmail),
-		facebook.New(os.Getenv("FACEBOOK_KEY"), os.Getenv("FACEBOOK_SECRET"), origin+"/auth/facebook/callback"),
-		google.New(os.Getenv("GOOGLE_KEY"), os.Getenv("GOOGLE_SECRET"), origin+"/auth/google/callback"),
-		twitch.New(os.Getenv("TWITCH_KEY"), os.Getenv("TWITCH_SECRET"), origin+"/auth/twitch/callback"),
+		amazon.New(os.Getenv("AMAZON_KEY"), os.Getenv("AMAZON_SECRET"), host+"/auth/amazon/callback"),
+		apple.New(os.Getenv("APPLE_KEY"), os.Getenv("APPLE_SECRET"), host+"/auth/apple/callback", nil, apple.ScopeName, apple.ScopeEmail),
+		discord.New(os.Getenv("DISCORD_KEY"), os.Getenv("DISCORD_SECRET"), host+"/auth/discord/callback", discord.ScopeIdentify, discord.ScopeEmail),
+		facebook.New(os.Getenv("FACEBOOK_KEY"), os.Getenv("FACEBOOK_SECRET"), host+"/auth/facebook/callback"),
+		google.New(os.Getenv("GOOGLE_KEY"), os.Getenv("GOOGLE_SECRET"), host+"/auth/google/callback"),
+		twitch.New(os.Getenv("TWITCH_KEY"), os.Getenv("TWITCH_SECRET"), host+"/auth/twitch/callback"),
 
 		// Use twitterv2 instead of twitter if you only have access to the Essential API Level
 		// the twitter provider uses a v1.1 API that is not available to the Essential Level
-		twitterv2.New(os.Getenv("TWITTER_KEY"), os.Getenv("TWITTER_SECRET"), origin+"/auth/twitterv2/callback"),
+		twitterv2.New(os.Getenv("TWITTER_KEY"), os.Getenv("TWITTER_SECRET"), host+"/auth/twitterv2/callback"),
 		// If you'd like to use authenticate instead of authorize in TwitterV2 provider, use this instead.
 		// twitterv2.NewAuthenticate(os.Getenv("TWITTER_KEY"), os.Getenv("TWITTER_SECRET"), "http://localhost:3000/auth/twitterv2/callback"),
 	)
@@ -115,8 +113,6 @@ func createCookieStore() sessions.Store {
 	cookieStore := sessions.NewCookieStore([]byte(os.Getenv("SESSION_SECRET")))
 	cookieStore.Options.HttpOnly = true
 	cookieStore.Options.Secure = authUrl.Scheme == "https"
-	// something about SameSite=Strict causes cookies to fail when being set on
-	// a redirect
 	cookieStore.Options.SameSite = http.SameSiteLaxMode
 	cookieStore.Options.Domain = getApexDomain(authUrl.Hostname())
 	return cookieStore
@@ -194,7 +190,7 @@ func validateRedirectTo(redirectTo string) bool {
 		return false
 	}
 
-	appUrl, err := url.Parse(os.Getenv("AUTH_HOST") + os.Getenv("PORT"))
+	appUrl, err := url.Parse(os.Getenv("AUTH_HOST"))
 	if err != nil {
 		slog.Error("appUrl is not a valid URL")
 		return false
