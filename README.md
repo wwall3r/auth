@@ -13,6 +13,7 @@ In dev, you can either use `http://lvh.me:<port>` (always verify it still points
 `127.0.0.1`) or use your hosts file to point something to `127.0.0.1`.
 
 - Copy `.env.example` to `.env` and fill in those values
+- `make install`
 - `make dev`
 
 ## Integrations and Examples
