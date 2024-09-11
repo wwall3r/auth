@@ -68,7 +68,7 @@ in another language.
 
 ### Logout
 
-Redirect to `https://auth.example.com/logout/{provider}?redirect=...`
+Redirect or link to `https://auth.example.com/logout/{provider}?redirect=...`
 
 The `provider` value in the `long` cookie will still be available to help indicate
 to the user the provider they last used to log in.
