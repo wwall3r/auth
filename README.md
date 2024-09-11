@@ -19,7 +19,7 @@ In dev, you can either use `http://lvh.me:<port>` (always verify it still points
 
 Integrations with other languages are in the examples folder:
 
-- [ ] TODO: add examples
+- [Go](/examples/go/)
 
 ## How it works
 
@@ -62,7 +62,7 @@ two cookies via `gorilla/sessions` `Store` signed via `SESSION_SECRET`:
 The `user` cookie expires after 30 days. The `long` cookie expires after a year.
 
 The middleware for your app should either use `gorilla/sessions` with the same
-`SESSION_SECRET` to pick those up (see Go example), or use the same method
+`SESSION_SECRET` to pick those up ([see Go example](/examples/go)), or use the same method
 in another language.
 
 ### Logout
