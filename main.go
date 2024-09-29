@@ -177,7 +177,6 @@ func onLoggedIn(res http.ResponseWriter, req *http.Request, gothUser goth.User) 
 	longValues["provider"] = gothUser.Provider
 	longValues["refreshToken"] = gothUser.RefreshToken
 	outputCookie.SetValues(res, "long", longValues, longModifier)
-	slog.Info("GOT HERE", "longValues", longValues)
 
 	// save the user to a session cookie store
 	sessionValues, err := outputCookie.GetValues(req, res, "user", sessionModifier)
