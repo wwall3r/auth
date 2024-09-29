@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"log/slog"
 	"net/http"
@@ -21,6 +22,7 @@ import (
 	"github.com/markbates/goth/providers/google"
 	"github.com/markbates/goth/providers/twitch"
 	"github.com/markbates/goth/providers/twitterv2"
+	"github.com/wwall3r/signedcookie"
 )
 
 func main() {
@@ -61,14 +63,12 @@ func main() {
 	}))
 
 	router.Get("/logout/{provider}", Make(func(res http.ResponseWriter, req *http.Request) error {
-		session := getSession(req)
-		session.Options.MaxAge = -1
-		session.Save(req, res)
+		outputCookie.RemoveValues(res, "user")
 
 		// remove refresh token from long session
-		longSession := getLongSession(req)
-		longSession.Values["refreshToken"] = ""
-		longSession.Save(req, res)
+		longValues, _ := outputCookie.GetValues(req, res, "long", longModifier)
+		longValues["refreshToken"] = ""
+		outputCookie.SetValues(res, "long", longValues, longModifier)
 
 		gothic.Logout(res, req)
 		redirectTo(res, req)
@@ -91,6 +91,7 @@ func main() {
 }
 
 var store sessions.Store
+var outputCookie *signedcookie.SignedCookie
 
 func initEverything() error {
 	if err := godotenv.Load(); err != nil {
@@ -100,6 +101,7 @@ func initEverything() error {
 	gothic.Store = createCookieStore()
 	store = gothic.Store
 
+	outputCookie = createSignedCookie()
 	return nil
 }
 
@@ -118,6 +120,23 @@ func createCookieStore() sessions.Store {
 	return cookieStore
 }
 
+func createSignedCookie() *signedcookie.SignedCookie {
+	authUrl, err := url.Parse(os.Getenv("AUTH_HOST"))
+	if err != nil {
+		slog.Error("AUTH_HOST is not a valid URL")
+		return nil
+	}
+
+	sc := signedcookie.New(os.Getenv("SESSION_SECRET"))
+
+	sc.CookieOptions.HttpOnly = true
+	sc.CookieOptions.Secure = authUrl.Scheme == "https"
+	sc.CookieOptions.SameSite = http.SameSiteLaxMode
+	sc.CookieOptions.Domain = getApexDomain(authUrl.Hostname())
+
+	return &sc
+}
+
 func Make(handler func(http.ResponseWriter, *http.Request) error) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		if err := handler(writer, request); err != nil {
@@ -125,6 +144,18 @@ func Make(handler func(http.ResponseWriter, *http.Request) error) http.HandlerFu
 			http.Error(writer, "internal server error", http.StatusInternalServerError)
 		}
 	}
+}
+
+func sessionModifier(cookie *http.Cookie) {
+	cookie.MaxAge = 60 * 60 * 24 * 30 // TODO: make this configurable
+}
+
+func longModifier(cookie *http.Cookie) {
+	cookie.MaxAge = 60 * 60 * 24 * 365 // TODO: make this configurable
+}
+
+func redirectToModifier(cookie *http.Cookie) {
+	cookie.MaxAge = 60 * 60
 }
 
 // TODO: figure out what to do with the refresh token. goth mentions support here:
@@ -136,32 +167,28 @@ func onLoggedIn(res http.ResponseWriter, req *http.Request, gothUser goth.User) 
 	// languages. Find a replacement for encoding/gob (or see if that is easy to read
 	// elsewhere) and see how easy that is to wire into the store.
 	// (If we pair down the info, can we just use strings directly?)
-	longSession := getLongSession(req)
+	longValues, err := outputCookie.GetValues(req, res, "long", longModifier)
+	if err != nil {
+		slog.Error("could not get long cookie", "err", err)
+	}
+
 	// this helps applications know the last provider which was used so they
 	// can surface that on the login page
-	longSession.Values["provider"] = gothUser.Provider
-	longSession.Values["refreshToken"] = gothUser.RefreshToken
-	longSession.Options.MaxAge = 60 * 60 * 24 * 365
-	longSession.Save(req, res)
+	longValues["provider"] = gothUser.Provider
+	longValues["refreshToken"] = gothUser.RefreshToken
+	outputCookie.SetValues(res, "long", longValues, longModifier)
+	slog.Info("GOT HERE", "longValues", longValues)
 
 	// save the user to a session cookie store
-	session := getSession(req)
-	session.Values["userId"] = gothUser.UserID
-	session.Values["email"] = gothUser.Email
-	session.Options.MaxAge = 60 * 60 * 24 * 30 // TODO: make this configurable
-	session.Save(req, res)
+	sessionValues, err := outputCookie.GetValues(req, res, "user", sessionModifier)
+	if err != nil {
+		slog.Error("could not get session cookie", "err", err)
+	}
+	sessionValues["userId"] = gothUser.UserID
+	sessionValues["email"] = gothUser.Email
+	outputCookie.SetValues(res, "user", sessionValues, sessionModifier)
 
 	redirectTo(res, req)
-}
-
-func getSession(request *http.Request) *sessions.Session {
-	session, _ := store.Get(request, "user")
-	return session
-}
-
-func getLongSession(request *http.Request) *sessions.Session {
-	session, _ := store.Get(request, "long")
-	return session
 }
 
 func saveRedirectTo(res http.ResponseWriter, req *http.Request) {
@@ -172,15 +199,10 @@ func saveRedirectTo(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	redirectCookie, err := store.Get(req, "redirectTo")
-	if err != nil {
-		slog.Error("could not get redirectTo cookie", "err", err)
-		return
-	}
-
-	redirectCookie.Values["redirectTo"] = redirectTo
-	redirectCookie.Options.MaxAge = 60 * 60
-	redirectCookie.Save(req, res)
+	redirectValues := make(signedcookie.CookieValues)
+	slog.Info("saving redirectTo cookie", "redirectTo", redirectTo)
+	redirectValues["redirectTo"] = redirectTo
+	outputCookie.SetValues(res, "redirectTo", redirectValues, redirectToModifier)
 }
 
 func validateRedirectTo(redirectTo string) bool {
@@ -197,7 +219,7 @@ func validateRedirectTo(redirectTo string) bool {
 	}
 
 	if redirectUrl.Scheme != appUrl.Scheme {
-		slog.Error("redirectTo scheme does not match auth scheme")
+		slog.Error("redirectTo scheme does not match auth scheme", redirectUrl.Scheme, appUrl.Scheme)
 		return false
 	}
 
@@ -223,18 +245,28 @@ func redirectTo(res http.ResponseWriter, req *http.Request) {
 	redirectTo := req.URL.Query().Get("redirect")
 
 	if redirectTo == "" {
-		redirectToCookie, _ := store.Get(req, "redirectTo")
-		redirectTo = redirectToCookie.Values["redirectTo"].(string)
+		redirectToValues, _ := outputCookie.GetValues(req, res, "redirectTo", redirectToModifier)
+		fmt.Printf("%#v\n", redirectToValues)
+		redirectTo = getString(redirectToValues["redirectTo"], "")
 	}
+
+	slog.Info("redirecting", "redirectTo", redirectTo)
 
 	if validateRedirectTo(redirectTo) {
 		// remove redirectTo cookie
-		redirectToCookie, _ := store.Get(req, "redirectTo")
-		redirectToCookie.Options.MaxAge = -1
-		redirectToCookie.Save(req, res)
-
+		outputCookie.RemoveValues(res, "redirectTo")
 		http.Redirect(res, req, redirectTo, http.StatusTemporaryRedirect)
 	} else {
 		http.Error(res, "Invalid redirectTo", http.StatusBadRequest)
 	}
+}
+
+func getString(value interface{}, defaultValue string) string {
+	fmt.Printf("%#v\n", value)
+
+	if value, ok := value.(string); ok {
+		return value
+	}
+
+	return defaultValue
 }

@@ -1,8 +1,6 @@
 module lustr8
 
-go 1.23
-
-toolchain go1.23.0
+go 1.23.0
 
 require (
 	github.com/go-chi/chi/v5 v5.1.0
@@ -25,6 +23,8 @@ require (
 	github.com/lestrrat-go/iter v1.0.2 // indirect
 	github.com/lestrrat-go/jwx v1.2.29 // indirect
 	github.com/lestrrat-go/option v1.0.1 // indirect
+	github.com/modern-go/concurrent v0.0.0-20180228061459-e0a39a4cb421 // indirect
+	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/mrjones/oauth v0.0.0-20180629183705-f4e24b6d100c // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	golang.org/x/crypto v0.26.0 // indirect
@@ -34,4 +34,8 @@ require (
 require (
 	github.com/gorilla/pat v1.0.2
 	github.com/gorilla/securecookie v1.1.2 // indirect
+	github.com/json-iterator/go v1.1.12
+	github.com/wwall3r/signedcookie v0.0.0-20240928194301-d8b0164f6ff4
 )
+
+replace github.com/wwall3r/signedcookie => ../signedcookie
