@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"log/slog"
 	"net/http"
@@ -245,7 +244,6 @@ func redirectTo(res http.ResponseWriter, req *http.Request) {
 
 	if redirectTo == "" {
 		redirectToValues, _ := outputCookie.GetValues(req, res, "redirectTo", redirectToModifier)
-		fmt.Printf("%#v\n", redirectToValues)
 		redirectTo = getString(redirectToValues["redirectTo"], "")
 	}
 
@@ -261,8 +259,6 @@ func redirectTo(res http.ResponseWriter, req *http.Request) {
 }
 
 func getString(value interface{}, defaultValue string) string {
-	fmt.Printf("%#v\n", value)
-
 	if value, ok := value.(string); ok {
 		return value
 	}
